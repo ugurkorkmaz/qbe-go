@@ -6,6 +6,7 @@
 test_orig
 test_go
 test/prog
+test/brainfuck/bf_test
 
 # Intermediate
 test.ssa
