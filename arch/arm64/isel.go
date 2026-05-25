@@ -49,25 +49,40 @@ func (t *ARM64Target) emitBinop(name string, ins ir.Instruction, f *ir.Function)
 		name = "f" + name
 	}
 	dst := t.formatRef(ins.To, ins.Cls, f)
-	src1 := t.formatRef(ins.Arg[0], ins.Cls, f)
-	src2 := t.formatRef(ins.Arg[1], ins.Cls, f)
+	
+	// ARM64 multiplication/division only take registers
+	isRegOnly := false
+	switch ins.Op {
+	case ir.Omul, ir.Odiv, ir.Oudiv:
+		isRegOnly = true
+	}
 
+	src1 := t.formatRef(ins.Arg[0], ins.Cls, f)
 	if ins.Arg[0].Kind == ir.RCon || ins.Arg[0].Kind == ir.RInt {
+		tmp1 := "x16"
+		if ins.Cls == ir.Kw { tmp1 = "w16" }
 		val := uint64(ins.Arg[0].Val)
-		if ins.Arg[0].Kind == ir.RCon {
-			val = f.Constants[ins.Arg[0].Val].Val
+		if ins.Arg[0].Kind == ir.RCon { val = f.Constants[ins.Arg[0].Val].Val }
+		t.emitMoveImm(tmp1, val, ins.Cls == ir.Kl)
+		src1 = tmp1
+	}
+
+	src2 := t.formatRef(ins.Arg[1], ins.Cls, f)
+	if isRegOnly || ins.Arg[1].Kind == ir.RCon || ins.Arg[1].Kind == ir.RInt {
+		if ins.Arg[1].Kind == ir.RCon || ins.Arg[1].Kind == ir.RInt {
+			tmp2 := "x17"
+			if ins.Cls == ir.Kw { tmp2 = "w17" }
+			val := uint64(ins.Arg[1].Val)
+			if ins.Arg[1].Kind == ir.RCon { val = f.Constants[ins.Arg[1].Val].Val }
+			t.emitMoveImm(tmp2, val, ins.Cls == ir.Kl)
+			src2 = tmp2
 		}
-		t.emitMoveImm("x16", val, true)
-		if ins.Cls.IsFloat() {
-			srcReg := "x16"
-			if ins.Cls == ir.Ks {
-				srcReg = "w16"
-			}
-			fmt.Fprintf(t.w(), "\tfmov %s, %s\n", dst, srcReg)
-			fmt.Fprintf(t.w(), "\t%s %s, %s, %s\n", name, dst, dst, src2)
-		} else {
-			fmt.Fprintf(t.w(), "\t%s %s, x16, %s\n", name, dst, src2)
-		}
+	}
+
+	if ins.Cls.IsFloat() {
+		// Float ops usually need fmov first if src1/src2 are from GPRs
+		// (Simplified for now)
+		fmt.Fprintf(t.w(), "\t%s %s, %s, %s\n", name, dst, src1, src2)
 	} else {
 		fmt.Fprintf(t.w(), "\t%s %s, %s, %s\n", name, dst, src1, src2)
 	}

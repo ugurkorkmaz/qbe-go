@@ -175,8 +175,24 @@ func (t *ARM64Target) emitInsDirect(ins ir.Instruction, f *ir.Function) {
 		}
 	case ir.Oload: t.emitMem("ldr", t.formatRef(ins.To, ins.Cls, f), ins.Arg[0], f)
 	case ir.Oloadub: t.emitMem("ldrb", t.formatRef(ins.To, ir.Kw, f), ins.Arg[0], f)
-	case ir.Ostoreb: t.emitMem("strb", t.formatRef(ins.Arg[0], ir.Kw, f), ins.Arg[1], f)
-	case ir.Ostorel: t.emitMem("str", t.formatRef(ins.Arg[0], ir.Kl, f), ins.Arg[1], f)
+	case ir.Ostoreb:
+		src := t.formatRef(ins.Arg[0], ir.Kw, f)
+		if ins.Arg[0].Kind == ir.RCon || ins.Arg[0].Kind == ir.RInt {
+			val := uint64(ins.Arg[0].Val)
+			if ins.Arg[0].Kind == ir.RCon { val = f.Constants[ins.Arg[0].Val].Val }
+			t.emitMoveImm("w16", val, false)
+			src = "w16"
+		}
+		t.emitMem("strb", src, ins.Arg[1], f)
+	case ir.Ostorel:
+		src := t.formatRef(ins.Arg[0], ir.Kl, f)
+		if ins.Arg[0].Kind == ir.RCon || ins.Arg[0].Kind == ir.RInt {
+			val := uint64(ins.Arg[0].Val)
+			if ins.Arg[0].Kind == ir.RCon { val = f.Constants[ins.Arg[0].Val].Val }
+			t.emitMoveImm("x16", val, true)
+			src = "x16"
+		}
+		t.emitMem("str", src, ins.Arg[1], f)
 	case ir.Omadd, ir.Omsub:
 		dst := t.formatRef(ins.To, ins.Cls, f)
 		src1 := t.formatRef(ins.Arg[0], ins.Cls, f)
