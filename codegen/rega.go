@@ -7,14 +7,16 @@ import (
 )
 
 type RegAllocator struct {
-	F      *ir.Function
-	Target arch.Target
+	F        *ir.Function
+	Target   arch.Target
+	GlobalTR map[uint32]int
 }
 
 func NewRegAllocator(f *ir.Function, t arch.Target) *RegAllocator {
 	return &RegAllocator{
-		F:      f,
-		Target: t,
+		F:        f,
+		Target:   t,
+		GlobalTR: make(map[uint32]int),
 	}
 }
 
@@ -59,19 +61,25 @@ func (ra *RegAllocator) allocBlock(b *ir.Block) {
 		Live: util.NewBitSet(ra.F.NTmp + 64),
 	}
 
-	// 1. Initial State: Mark live-out temporaries as needing registers.
-	// In a full graph-coloring allocator, we would map these to specific registers.
-	// Here, we just acknowledge they are live. Real assignment happens at Use sites.
-	// However, for consistency, if they were assigned in a successor, we should respect that (Global RA).
-	// Current implementation is Local RA (per block), which means we might have mismatches at block boundaries.
-	// QBE solves this by fixing register usage at block edges or using a global loop.
-	// *Limitation*: This is a simplified Local RA. Cross-block register consistency is implied by ABI/Calling Convention
-	// or handled by inserting moves (not fully implemented here).
-	// These are already limited by the Spill pass.
+	// Seed live-out temporaries with registers (pre-rename IDs may be stale, best-effort).
 	for t := uint32(0); t < ra.F.NTmp; t++ {
 		if b.Out.Has(t) {
-			ra.assign(state, t, -1) // -1 means no preferred register
+			ra.assign(state, t, -1)
 		}
+	}
+
+	// Process jump argument before the backward scan (jump is last in execution order).
+	if b.Jmp.Type == ir.Jjnz && b.Jmp.Arg.IsTmp() {
+		tid := b.Jmp.Arg.Val
+		reg, ok := state.TtoR[tid]
+		if !ok {
+			if globalReg, found := ra.GlobalTR[tid]; found {
+				reg = ra.takeReg(state, tid, globalReg)
+			} else {
+				reg = ra.assign(state, tid, -1)
+			}
+		}
+		b.Jmp.Arg = ir.PhysicalReg(reg)
 	}
 
 	// 2. Process instructions backwards.
@@ -123,12 +131,19 @@ func (ra *RegAllocator) allocBlock(b *ir.Block) {
 				tid := arg.Val
 				reg, ok := state.TtoR[tid]
 				if !ok {
-					fav := -1
-					// HINT: If this is a copy to a physical register, prefer it!
-					if ins.Op == ir.Ocopy && ins.To.Kind == ir.RReg {
-						fav = int(ins.To.Val)
+					// Respect cross-block assignment: if this tmp was assigned in
+					// a predecessor block, use the same register for consistency.
+					if globalReg, found := ra.GlobalTR[tid]; found {
+						reg = ra.takeReg(state, tid, globalReg)
+					} else {
+						fav := -1
+						// HINT: prefer the destination physical register for coalescing,
+						// but only when tmp has no prior global assignment.
+						if ins.Op == ir.Ocopy && ins.To.Kind == ir.RReg {
+							fav = int(ins.To.Val)
+						}
+						reg = ra.assign(state, tid, fav)
 					}
-					reg = ra.assign(state, tid, fav)
 				}
 				*arg = ir.PhysicalReg(reg)
 			} else if arg.Kind == ir.RReg {
@@ -181,6 +196,9 @@ func (ra *RegAllocator) takeReg(state *RegState, tid uint32, reg int) int {
 	state.TtoR[tid] = reg
 	state.RtoT[reg] = tid
 	state.Live.Set(uint32(reg))
+	if tid != 0 {
+		ra.GlobalTR[tid] = reg
+	}
 	return reg
 }
 

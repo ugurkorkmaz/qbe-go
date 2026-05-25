@@ -25,7 +25,11 @@ func (t *ARM64Target) emitModulo(ins ir.Instruction, f *ir.Function) {
 
 func (t *ARM64Target) emitMoveImm(dst string, val uint64, wide bool) {
 	if val == 0 {
-		fmt.Fprintf(t.w(), "\tmov %s, xzr\n", dst)
+		zr := "xzr"
+		if !wide {
+			zr = "wzr"
+		}
+		fmt.Fprintf(t.w(), "\tmov %s, %s\n", dst, zr)
 		return
 	}
 	fmt.Fprintf(t.w(), "\tmovz %s, #%d\n", dst, val&0xffff)
