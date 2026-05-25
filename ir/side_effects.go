@@ -8,6 +8,8 @@ func (ins Instruction) HasSideEffects() bool {
 		return true
 	case Ocall:
 		return true
+	case Oarg, Oargc:
+		return true
 	case Ovastart, Ovaarg:
 		return true
 	// Allocations change stack state, so they are usually kept

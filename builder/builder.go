@@ -211,7 +211,7 @@ func (b *Builder) Call(cls ir.Class, addr ir.Ref, args []ir.Ref) ir.Ref {
 			// RInt is usually small
 			acls = ir.Kw
 		}
-		b.Ins(ir.Oarg, acls, ir.Undef, arg, ir.Undef, ir.Undef)
+		b.Ins(ir.Oarg, acls, arg, ir.Undef, ir.Undef, ir.Undef)
 	}
 	to := b.Tmp("", cls)
 	b.Ins(ir.Ocall, cls, to, addr, ir.Undef, ir.Undef)

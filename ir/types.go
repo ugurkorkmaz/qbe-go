@@ -9,6 +9,8 @@ const (
 	Kl Class = 1  // 64-bit long
 	Ks Class = 2  // 32-bit single-precision float
 	Kd Class = 3  // 64-bit double-precision float
+	Kb Class = 4  // 8-bit byte
+	Kh Class = 5  // 16-bit halfword
 )
 
 func (c Class) String() string {
@@ -21,6 +23,10 @@ func (c Class) String() string {
 		return "s"
 	case Kd:
 		return "d"
+	case Kb:
+		return "b"
+	case Kh:
+		return "h"
 	default:
 		return "x"
 	}

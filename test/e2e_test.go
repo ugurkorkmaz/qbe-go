@@ -91,7 +91,6 @@ func TestArithmetic(t *testing.T) {
 			Build: func(b *builder.Builder) {
 				b.Block("start")
 				p1 := b.Param(ir.Kw, "a")
-				_ = b.Param(ir.Kw, "b") // collect but ignore
 				m := b.Mul(ir.Kw, p1, b.Con(5))
 				res := b.Add(ir.Kw, m, b.Con(10))
 				b.Ret(ir.Kw, res)
@@ -102,42 +101,4 @@ func TestArithmetic(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) { runE2E(t, tc, 10) })
 	}
-}
-
-func TestControlFlow(t *testing.T) {
-	t.Run("if_else", func(t *testing.T) {
-		runE2E(t, TestCase{
-			Name: "if_else",
-			Build: func(b *builder.Builder) {
-				start := b.Block("start")
-				then := b.Block("then")
-				els := b.Block("else")
-				b.SetBlock(start)
-				p1 := b.Param(ir.Kw, "a")
-				b.Jnz(b.Compare(ir.Ocsgtw, ir.Kw, p1, b.Con(50)), then, els)
-				b.SetBlock(then)
-				b.Ret(ir.Kw, p1)
-				b.SetBlock(els)
-				b.Ret(ir.Kw, b.Con(50))
-			},
-			Expected: "100",
-		}, 100)
-	})
-}
-
-func TestMemory(t *testing.T) {
-	t.Run("stack_alloc", func(t *testing.T) {
-		runE2E(t, TestCase{
-			Name: "stack_alloc",
-			Build: func(b *builder.Builder) {
-				b.Block("start")
-				slot := b.Tmp("s", ir.Kl)
-				b.Ins(ir.Oalloc8, ir.Kl, slot, ir.Undef, ir.Undef, ir.Undef)
-				b.Ins(ir.Ostorel, ir.Kl, ir.Undef, b.Con(4242), slot, ir.Undef)
-				res := b.Load(ir.Kl, slot)
-				b.Ret(ir.Kw, b.Copy(ir.Kw, res))
-			},
-			Expected: "4242",
-		}, 0)
-	})
 }

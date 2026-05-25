@@ -133,9 +133,8 @@ func (t *ARM64Target) emitIns(ins ir.Instruction, f *ir.Function) {
 		return
 	}
 
-	// If this instruction uses the pending cmp result, flush it
 	if t.PendingCmp != nil {
-		if ins.Arg[0] == t.PendingCmp.To || ins.Arg[1] == t.PendingCmp.To {
+		if ins.Arg[0] == t.PendingCmp.To || ins.Arg[1] == t.PendingCmp.To || ins.Arg[2] == t.PendingCmp.To {
 			t.flushPendingCmp(f)
 		}
 	}
@@ -168,9 +167,7 @@ func (t *ARM64Target) emitInsDirect(ins ir.Instruction, f *ir.Function) {
 		} else {
 			srcReg := t.formatRef(src, ins.Cls, f)
 			if dst != srcReg {
-				cmd := "mov"
-				if ins.Cls.IsFloat() { cmd = "fmov" }
-				fmt.Fprintf(t.w(), "\t%s %s, %s\n", cmd, dst, srcReg)
+				fmt.Fprintf(t.w(), "\tmov %s, %s\n", dst, srcReg)
 			}
 		}
 	case ir.Oload: t.emitMem("ldr", t.formatRef(ins.To, ins.Cls, f), ins.Arg[0], f)
@@ -232,12 +229,12 @@ func (t *ARM64Target) emitCmpOnly(ins ir.Instruction, f *ir.Function) {
 
 func (t *ARM64Target) cmpCond(op ir.Opcode) string {
 	switch op {
-	case ir.Oceqw, ir.Oceql, ir.Oceqs, ir.Oceqd: return "eq"
-	case ir.Ocnew, ir.Ocnel, ir.Ocnes, ir.Ocned: return "ne"
-	case ir.Ocsltw, ir.Ocsltl, ir.Oclts, ir.Ocltd: return "lt"
-	case ir.Ocslew, ir.Ocslel, ir.Ocles, ir.Ocled: return "le"
-	case ir.Ocsgtw, ir.Ocsgtl, ir.Ocgts, ir.Ocgtd: return "gt"
-	case ir.Ocsgew, ir.Ocsgel, ir.Ocges, ir.Ocged: return "ge"
+	case ir.Oceqw, ir.Oceql: return "eq"
+	case ir.Ocnew, ir.Ocnel: return "ne"
+	case ir.Ocsltw, ir.Ocsltl: return "lt"
+	case ir.Ocslew, ir.Ocslel: return "le"
+	case ir.Ocsgtw, ir.Ocsgtl: return "gt"
+	case ir.Ocsgew, ir.Ocsgel: return "ge"
 	default: return "al"
 	}
 }
@@ -272,10 +269,6 @@ func (t *ARM64Target) formatRef(r ir.Ref, cls ir.Class, f *ir.Function) string {
 	switch r.Kind {
 	case ir.RReg:
 		if r.Val == 31 { return "sp" }
-		if r.Val >= 32 && r.Val < 64 {
-			if cls == ir.Ks { return fmt.Sprintf("s%d", r.Val-32) }
-			return fmt.Sprintf("d%d", r.Val-32)
-		}
 		if cls == ir.Kw { return gpr32Names[r.Val] }
 		return gprNames[r.Val]
 	case ir.RCon: return fmt.Sprintf("#%d", f.Constants[r.Val].Val)
