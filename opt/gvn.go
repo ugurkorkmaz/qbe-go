@@ -46,7 +46,7 @@ func GVN(f *ir.Function) {
 		for i := range b.Ins {
 			ins := &b.Ins[i]
 			// Replace arguments first
-			for n := 0; n < 2; n++ {
+			for n := 0; n < 3; n++ {
 				if ins.Arg[n].IsTmp() {
 					ins.Arg[n] = replacements[ins.Arg[n].Val]
 				}
@@ -100,11 +100,11 @@ func GVN(f *ir.Function) {
 
 func formatInsExpr(ins *ir.Instruction) string {
 	// Commutative ops should normalize argument order
-	a1, a2 := ins.Arg[0], ins.Arg[1]
+	a1, a2, a3 := ins.Arg[0], ins.Arg[1], ins.Arg[2]
 	if isCommutative(ins.Op) && a1.Val > a2.Val {
 		a1, a2 = a2, a1
 	}
-	return fmt.Sprintf("%d:%d:%v:%v", ins.Op, ins.Cls, a1, a2)
+	return fmt.Sprintf("%d:%d:%v:%v:%v", ins.Op, ins.Cls, a1, a2, a3)
 }
 
 func formatPhiExpr(p *ir.Phi, replacements []ir.Ref) string {

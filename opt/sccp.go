@@ -164,7 +164,7 @@ func transform(f *ir.Function, states []LatticeState, blockExec []bool) {
 		}
 		for i := range b.Ins {
 			ins := &b.Ins[i]
-			for n := 0; n < 2; n++ {
+			for n := 0; n < 3; n++ {
 				if ins.Arg[n].IsTmp() {
 					s := states[ins.Arg[n].Val]
 					if s.Kind == LatCon {

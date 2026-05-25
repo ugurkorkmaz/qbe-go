@@ -46,7 +46,7 @@ func (ra *RegAllocator) findGlobalLiveAcrossCalls() map[uint32]bool {
 			if ins.Op != ir.Ocall { continue }
 			usedAfter := make(map[uint32]bool)
 			for j := callIdx + 1; j < len(b.Ins); j++ {
-				for n := 0; n < 2; n++ {
+				for n := 0; n < 3; n++ {
 					if b.Ins[j].Arg[n].IsTmp() { usedAfter[b.Ins[j].Arg[n].Val] = true }
 				}
 			}
@@ -125,7 +125,7 @@ func (ra *RegAllocator) allocBlock(b *ir.Block, globalLiveAcrossCalls map[uint32
 		} else if ins.To.Kind == ir.RReg {
 			ra.freeReg(state, 0, int(ins.To.Val))
 		}
-		for n := 0; n < 2; n++ {
+		for n := 0; n < 3; n++ {
 			arg := &ins.Arg[n]
 			if arg.IsTmp() {
 				tid := arg.Val
@@ -147,7 +147,7 @@ func (ra *RegAllocator) allocBlock(b *ir.Block, globalLiveAcrossCalls map[uint32
 		for _, r := range remaps {
 			fixups = append(fixups, ir.Instruction{
 				Op: ir.Ocopy, Cls: ra.F.Temps[r.tid].Cls,
-				To: ir.PhysicalReg(r.new), Arg: [2]ir.Ref{ir.PhysicalReg(r.old), ir.Undef},
+				To: ir.PhysicalReg(r.new), Arg: [3]ir.Ref{ir.PhysicalReg(r.old), ir.Undef, ir.Undef},
 			})
 		}
 		b.Ins = append(fixups, b.Ins...)
@@ -160,7 +160,7 @@ func (ra *RegAllocator) allocBlock(b *ir.Block, globalLiveAcrossCalls map[uint32
 }
 
 func (ra *RegAllocator) getForbidden(ins *ir.Instruction, state *RegState) int {
-	for n := 0; n < 2; n++ {
+	for n := 0; n < 3; n++ {
 		if ins.Arg[n].IsTmp() {
 			if r, ok := state.TtoR[ins.Arg[n].Val]; ok { return r }
 		} else if ins.Arg[n].Kind == ir.RReg { return int(ins.Arg[n].Val) }

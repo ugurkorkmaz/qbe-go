@@ -159,7 +159,7 @@ func (b *Builder) Ins(op ir.Opcode, cls ir.Class, to, arg1, arg2 ir.Ref) {
 		Op:  op,
 		Cls: cls,
 		To:  to,
-		Arg: [2]ir.Ref{arg1, arg2},
+		Arg: [3]ir.Ref{arg1, arg2, ir.Undef},
 	})
 }
 

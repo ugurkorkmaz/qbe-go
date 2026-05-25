@@ -131,6 +131,7 @@ func main() {
 	globals := []string{"putchar", "getchar", "tape"}
 
 	// analysis.SSA(f) // Disabled: BF compiler generates SSA IR manually
+	target.Simplify(f)
 	// Full Pipeline
 	analysis.VerifySSA(f)
 	opt.PhiElim(f)

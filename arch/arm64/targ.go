@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/ugurkorkmaz/qbe-go/ir"
 )
 
 // ARM64 specific register constants (AArch64)
@@ -96,6 +98,7 @@ type ARM64Target struct {
 	Apple          bool
 	CurrentGlobals []string
 	Out            io.Writer
+	PendingCmp     *ir.Instruction // For branch fusion
 }
 
 func (t *ARM64Target) w() io.Writer {

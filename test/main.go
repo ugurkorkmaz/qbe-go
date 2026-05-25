@@ -14,6 +14,7 @@ import (
 
 func compile(target *arm64.ARM64Target, globals []string, f *ir.Function) {
 	analysis.SSA(f)
+	target.Simplify(f)
 	opt.PhiElim(f)
 	codegen.Spill(f, target)
 	target.ABI0(f)

@@ -92,7 +92,7 @@ func rewriteSpills(f *ir.Function) {
 		var newIns []ir.Instruction
 		for _, ins := range b.Ins {
 			// 1. Reload spilled arguments
-			for i := 0; i < 2; i++ {
+			for i := 0; i < 3; i++ {
 				arg := ins.Arg[i]
 				if arg.IsTmp() && f.Temps[arg.Val].Slot != -1 {
 					// This arg is spilled. We must load it into a new short-lived temp.
@@ -107,7 +107,7 @@ func rewriteSpills(f *ir.Function) {
 						Op:  ir.Oload,
 						Cls: f.Temps[arg.Val].Cls,
 						To:  newTmp,
-						Arg: [2]ir.Ref{ir.NewSlot(uint32(slot)), ir.Undef},
+						Arg: [3]ir.Ref{ir.NewSlot(uint32(slot)), ir.Undef, ir.Undef},
 					}
 					// Handle floating point load if necessary (Oload works for both GPR/FPR in emit.go based on Cls)
 					newIns = append(newIns, loadIns)
@@ -160,7 +160,7 @@ func rewriteSpills(f *ir.Function) {
 				storeIns := ir.Instruction{
 					Op:  storeOp,
 					Cls: ir.Kl, // Store opcode cls usually doesn't matter or is address cls
-					Arg: [2]ir.Ref{newTmp, ir.NewSlot(uint32(slot))},
+					Arg: [3]ir.Ref{newTmp, ir.NewSlot(uint32(slot)), ir.Undef},
 				}
 				newIns = append(newIns, storeIns)
 			}

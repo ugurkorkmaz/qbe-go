@@ -51,14 +51,14 @@ func PhiElim(f *ir.Function) {
 					Op:  ir.Ocopy,
 					Cls: cp.cls,
 					To:  tmp,
-					Arg: [2]ir.Ref{cp.arg, ir.Undef},
+					Arg: [3]ir.Ref{cp.arg, ir.Undef, ir.Undef},
 				})
 				// to = copy tmp
 				copyIns = append(copyIns, ir.Instruction{
 					Op:  ir.Ocopy,
 					Cls: cp.cls,
 					To:  cp.to,
-					Arg: [2]ir.Ref{tmp, ir.Undef},
+					Arg: [3]ir.Ref{tmp, ir.Undef, ir.Undef},
 				})
 			}
 

@@ -99,7 +99,7 @@ func (t *AMD64Target) lowerParams(f *ir.Function) {
 				Op:  ir.Ocopy,
 				Cls: ins.Cls,
 				To:  ins.To,
-				Arg: [2]ir.Ref{ir.PhysicalReg(reg), ir.Undef},
+				Arg: [3]ir.Ref{ir.PhysicalReg(reg), ir.Undef, ir.Undef},
 			})
 		} else {
 			newIns = append(newIns, ins)
@@ -114,7 +114,7 @@ func (t *AMD64Target) lowerRet(f *ir.Function, b *ir.Block) {
 			Op:  ir.Ocopy,
 			Cls: ir.Kw,
 			To:  ir.PhysicalReg(RAX),
-			Arg: [2]ir.Ref{b.Jmp.Arg, ir.Undef},
+			Arg: [3]ir.Ref{b.Jmp.Arg, ir.Undef, ir.Undef},
 		})
 		b.Jmp.Type, b.Jmp.Arg = ir.Jjmp, ir.Undef
 	}

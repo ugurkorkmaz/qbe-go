@@ -128,7 +128,7 @@ func (t *ARM64Target) selret(b *ir.Block, f *ir.Function) {
 			Op:  ir.Ocopy,
 			Cls: b.Jmp.Type.Class(),
 			To:  ir.PhysicalReg(targetReg),
-			Arg: [2]ir.Ref{b.Jmp.Arg, ir.Undef},
+			Arg: [3]ir.Ref{b.Jmp.Arg, ir.Undef, ir.Undef},
 		})
 		b.Jmp.Type = ir.Jjmp
 		b.Jmp.Arg = ir.Undef
@@ -258,7 +258,7 @@ func (t *ARM64Target) selpar(f *ir.Function, b *ir.Block) {
 			}
 			newIns = append(newIns, ir.Instruction{
 				Op: ir.Ocopy, Cls: ins.Cls, To: ins.To,
-				Arg: [2]ir.Ref{ir.PhysicalReg(reg), ir.Undef},
+				Arg: [3]ir.Ref{ir.PhysicalReg(reg), ir.Undef, ir.Undef},
 			})
 		} else if ins.Op == ir.Oparc {
 			var cr arm64Class
@@ -266,7 +266,7 @@ func (t *ARM64Target) selpar(f *ir.Function, b *ir.Block) {
 			t.typclass(&cr, ty, &gp, &fp, f)
 			newIns = append(newIns, ir.Instruction{
 				Op: ir.Ocopy, Cls: ir.Kl, To: ins.To,
-				Arg: [2]ir.Ref{ir.PhysicalReg(cr.reg[0]), ir.Undef},
+				Arg: [3]ir.Ref{ir.PhysicalReg(cr.reg[0]), ir.Undef, ir.Undef},
 			})
 		} else {
 			// Keep other instructions as they are
@@ -318,7 +318,7 @@ func (t *ARM64Target) selcall(f *ir.Function, ni *[]ir.Instruction, args []ir.In
 	if stk > 0 {
 		*ni = append(*ni, ir.Instruction{
 			Op: ir.Osub, Cls: ir.Kl, To: ir.PhysicalReg(31 /* SP */),
-			Arg: [2]ir.Ref{ir.PhysicalReg(31 /* SP */), ir.NewInt(int32(stk))},
+			Arg: [3]ir.Ref{ir.PhysicalReg(31 /* SP */), ir.NewInt(int32(stk)), ir.Undef},
 		})
 	}
 
@@ -335,11 +335,11 @@ func (t *ARM64Target) selcall(f *ir.Function, ni *[]ir.Instruction, args []ir.In
 			addr := f.NewTmp("abis", ir.Kl)
 			*ni = append(*ni, ir.Instruction{
 				Op: ir.Oadd, Cls: ir.Kl, To: addr,
-				Arg: [2]ir.Ref{ir.PhysicalReg(31 /* SP */), ir.NewInt(int32(off))},
+				Arg: [3]ir.Ref{ir.PhysicalReg(31 /* SP */), ir.NewInt(int32(off)), ir.Undef},
 			})
 			*ni = append(*ni, ir.Instruction{
 				Op: ir.Ostorel, Cls: ir.Kl,
-				Arg: [2]ir.Ref{args[i].Arg[0], addr},
+				Arg: [3]ir.Ref{args[i].Arg[0], addr, ir.Undef},
 			})
 			off += uint32(c.size)
 		} else {
@@ -347,7 +347,7 @@ func (t *ARM64Target) selcall(f *ir.Function, ni *[]ir.Instruction, args []ir.In
 			for j := uint8(0); j < c.nreg; j++ {
 				*ni = append(*ni, ir.Instruction{
 					Op: ir.Ocopy, Cls: c.cls[j], To: ir.PhysicalReg(c.reg[j]),
-					Arg: [2]ir.Ref{args[i].Arg[0], ir.Undef},
+					Arg: [3]ir.Ref{args[i].Arg[0], ir.Undef, ir.Undef},
 				})
 			}
 		}
@@ -360,7 +360,7 @@ func (t *ARM64Target) selcall(f *ir.Function, ni *[]ir.Instruction, args []ir.In
 	if stk > 0 {
 		*ni = append(*ni, ir.Instruction{
 			Op: ir.Oadd, Cls: ir.Kl, To: ir.PhysicalReg(31 /* SP */),
-			Arg: [2]ir.Ref{ir.PhysicalReg(31 /* SP */), ir.NewInt(int32(stk))},
+			Arg: [3]ir.Ref{ir.PhysicalReg(31 /* SP */), ir.NewInt(int32(stk)), ir.Undef},
 		})
 	}
 
@@ -372,7 +372,7 @@ func (t *ARM64Target) selcall(f *ir.Function, ni *[]ir.Instruction, args []ir.In
 		}
 		*ni = append(*ni, ir.Instruction{
 			Op: ir.Ocopy, Cls: call.Cls, To: call.To,
-			Arg: [2]ir.Ref{ir.PhysicalReg(retReg), ir.Undef},
+			Arg: [3]ir.Ref{ir.PhysicalReg(retReg), ir.Undef, ir.Undef},
 		})
 	}
 }

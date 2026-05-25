@@ -61,7 +61,7 @@ func CopyProp(f *ir.Function) {
 		for i := range b.Ins {
 			ins := &b.Ins[i]
 			// Replace uses in any instruction
-			for n := 0; n < 2; n++ {
+			for n := 0; n < 3; n++ {
 				if ins.Arg[n].IsTmp() {
 					ins.Arg[n] = findRoot(ins.Arg[n], cpy)
 				}

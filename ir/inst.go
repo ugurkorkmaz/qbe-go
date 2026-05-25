@@ -8,7 +8,7 @@ type Instruction struct {
 	Op  Opcode
 	Cls Class
 	To  Ref
-	Arg [2]Ref
+	Arg [3]Ref
 }
 
 // Phi node represents an SSA Phi function

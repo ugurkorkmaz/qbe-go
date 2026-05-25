@@ -135,7 +135,7 @@ func rename(f *ir.Function) {
 
 		for i := range b.Ins {
 			ins := &b.Ins[i]
-			for n := 0; n < 2; n++ {
+			for n := 0; n < 3; n++ {
 				if ins.Arg[n].IsTmp() {
 					tid := newToOld[ins.Arg[n].Val]
 					if len(stacks[tid]) > 0 {
