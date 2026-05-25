@@ -181,6 +181,10 @@ func (b *Builder) Ret(cls ir.Class, arg ir.Ref) {
 		jtype = ir.Jretw
 	case ir.Kl:
 		jtype = ir.Jretl
+	case ir.Ks:
+		jtype = ir.Jrets
+	case ir.Kd:
+		jtype = ir.Jretd
 	default:
 		jtype = ir.Jretw
 	}

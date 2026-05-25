@@ -33,6 +33,9 @@ type Function struct {
 
 	RetTy int // Index in types if aggregate, -1 otherwise
 	Types []Type
+
+	// Physical callee-saved registers actually used; populated by the RA.
+	CalleeSaved []int
 }
 
 // Temporary represents metadata for a temporary variable

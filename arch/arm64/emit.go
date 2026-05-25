@@ -23,16 +23,18 @@ func (t *ARM64Target) Emit(f *ir.Function, globals []string) error {
 	fmt.Fprintf(t.w(), "%s%s:\n", pfx, f.Name)
 
 	// Emit Prologue
-	// Always save FP and LR, and update FP.
-	// This creates a 16-byte frame record at the bottom of the stack.
-	fmt.Fprintf(t.w(), "\tstp x29, x30, [sp, #-16]!\n")
+	calleeSaveArea := t.calleeSaveAreaSize(f)
+	prologueSize := 16 + calleeSaveArea
+	fmt.Fprintf(t.w(), "\tstp x29, x30, [sp, #-%d]!\n", prologueSize)
+	for i, reg := range f.CalleeSaved {
+		fmt.Fprintf(t.w(), "\tstr %s, [sp, #%d]\n", gprNames[reg], 16+i*8)
+	}
 	fmt.Fprintf(t.w(), "\tmov x29, sp\n")
 
 	frameSize := t.calculateFrame(f)
 	if frameSize > 0 {
 		t.emitFrameAlloc(frameSize)
 	}
-	// Note: emitFrameAlloc will bump SP further down if locals exist.
 
 	t.CurrentGlobals = globals
 
@@ -53,6 +55,13 @@ func (t *ARM64Target) Emit(f *ir.Function, globals []string) error {
 	// Remove hacky data section emit. We will handle data separately.
 
 	return nil
+}
+
+// calleeSaveAreaSize returns the stack bytes needed to save f.CalleeSaved,
+// rounded up to 16-byte alignment.
+func (t *ARM64Target) calleeSaveAreaSize(f *ir.Function) int {
+	n := len(f.CalleeSaved) * 8
+	return (n + 15) &^ 15
 }
 
 func (t *ARM64Target) calculateFrame(f *ir.Function) int {
@@ -92,8 +101,13 @@ func (t *ARM64Target) emitJump(b *ir.Block, f *ir.Function) {
 		if b.S1 != nil {
 			fmt.Fprintf(t.w(), "\tb %s%s_%d\n", lblPrefix, f.Name, b.S1.Id)
 		} else {
+			calleeSaveArea := t.calleeSaveAreaSize(f)
+			prologueSize := 16 + calleeSaveArea
 			fmt.Fprintf(t.w(), "\tmov sp, x29\n")
-			fmt.Fprintf(t.w(), "\tldp x29, x30, [sp], #16\n")
+			for i, reg := range f.CalleeSaved {
+				fmt.Fprintf(t.w(), "\tldr %s, [sp, #%d]\n", gprNames[reg], 16+i*8)
+			}
+			fmt.Fprintf(t.w(), "\tldp x29, x30, [sp], #%d\n", prologueSize)
 			fmt.Fprintf(t.w(), "\tret\n")
 		}
 	case ir.Jjnz:
