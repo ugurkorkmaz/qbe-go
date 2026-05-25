@@ -6,21 +6,27 @@ import (
 	"github.com/ugurkorkmaz/qbe-go/ir"
 )
 
-func (t *ARM64Target) Emit(f *ir.Function, globals []string) error {
-	// Print function label
-	fmt.Printf(".text\n")
-	// fmt.Printf(".balign 4\n")
-	if f.Exported {
-		fmt.Printf(".globl _%s\n", f.Name)
+func (t *ARM64Target) symPrefix() string {
+	if t.Apple {
+		return "_"
 	}
-	fmt.Printf(".p2align 2\n") // 4-byte alignment
-	fmt.Printf("_%s:\n", f.Name)
+	return ""
+}
+
+func (t *ARM64Target) Emit(f *ir.Function, globals []string) error {
+	pfx := t.symPrefix()
+	fmt.Fprintf(t.w(), ".text\n")
+	if f.Exported {
+		fmt.Fprintf(t.w(), ".globl %s%s\n", pfx, f.Name)
+	}
+	fmt.Fprintf(t.w(), ".p2align 2\n")
+	fmt.Fprintf(t.w(), "%s%s:\n", pfx, f.Name)
 
 	// Emit Prologue
 	// Always save FP and LR, and update FP.
 	// This creates a 16-byte frame record at the bottom of the stack.
-	fmt.Printf("\tstp x29, x30, [sp, #-16]!\n")
-	fmt.Printf("\tmov x29, sp\n")
+	fmt.Fprintf(t.w(), "\tstp x29, x30, [sp, #-16]!\n")
+	fmt.Fprintf(t.w(), "\tmov x29, sp\n")
 
 	frameSize := t.calculateFrame(f)
 	if frameSize > 0 {
@@ -36,7 +42,7 @@ func (t *ARM64Target) Emit(f *ir.Function, globals []string) error {
 			lblPrefix = "L"
 		}
 		// Use function name to disambiguate local labels between functions
-		fmt.Printf("%s%s_%d:\t// @%s\n", lblPrefix, f.Name, b.Id, b.Name)
+		fmt.Fprintf(t.w(), "%s%s_%d:\t// @%s\n", lblPrefix, f.Name, b.Id, b.Name)
 
 		for _, ins := range b.Ins {
 			t.emitIns(ins, f)
@@ -65,13 +71,13 @@ func (t *ARM64Target) calculateFrame(f *ir.Function) int {
 func (t *ARM64Target) emitFrameAlloc(size int) {
 	size = (size + 15) &^ 15 // 16-byte alignment
 	if size <= 4095 {
-		fmt.Printf("\tsub sp, sp, #%d\n", size)
+		fmt.Fprintf(t.w(), "\tsub sp, sp, #%d\n", size)
 	} else {
-		fmt.Printf("\tmov x16, #%d\n", size&0xffff)
+		fmt.Fprintf(t.w(), "\tmov x16, #%d\n", size&0xffff)
 		if size > 0xffff {
-			fmt.Printf("\tmovk x16, #%d, lsl #16\n", (size>>16)&0xffff)
+			fmt.Fprintf(t.w(), "\tmovk x16, #%d, lsl #16\n", (size>>16)&0xffff)
 		}
-		fmt.Printf("\tsub sp, sp, x16\n")
+		fmt.Fprintf(t.w(), "\tsub sp, sp, x16\n")
 	}
 }
 
@@ -84,15 +90,15 @@ func (t *ARM64Target) emitJump(b *ir.Block, f *ir.Function) {
 	switch b.Jmp.Type {
 	case ir.Jjmp:
 		if b.S1 != nil {
-			fmt.Printf("\tb %s%s_%d\n", lblPrefix, f.Name, b.S1.Id)
+			fmt.Fprintf(t.w(), "\tb %s%s_%d\n", lblPrefix, f.Name, b.S1.Id)
 		} else {
-			fmt.Printf("\tmov sp, x29\n")
-			fmt.Printf("\tldp x29, x30, [sp], #16\n")
-			fmt.Printf("\tret\n")
+			fmt.Fprintf(t.w(), "\tmov sp, x29\n")
+			fmt.Fprintf(t.w(), "\tldp x29, x30, [sp], #16\n")
+			fmt.Fprintf(t.w(), "\tret\n")
 		}
 	case ir.Jjnz:
-		fmt.Printf("\tcbnz %s, %s%s_%d\n", t.formatRef(b.Jmp.Arg, ir.Kw, f), lblPrefix, f.Name, b.S1.Id)
-		fmt.Printf("\tb %s%s_%d\n", lblPrefix, f.Name, b.S2.Id)
+		fmt.Fprintf(t.w(), "\tcbnz %s, %s%s_%d\n", t.formatRef(b.Jmp.Arg, ir.Kw, f), lblPrefix, f.Name, b.S1.Id)
+		fmt.Fprintf(t.w(), "\tb %s%s_%d\n", lblPrefix, f.Name, b.S2.Id)
 	}
 }
 
@@ -107,7 +113,11 @@ func (t *ARM64Target) emitIns(ins ir.Instruction, f *ir.Function) {
 	case ir.Omul:
 		t.emitBinop("mul", ins, f)
 	case ir.Odiv:
-		t.emitBinop("div", ins, f)
+		if ins.Cls.IsFloat() {
+			t.emitBinop("div", ins, f)
+		} else {
+			t.emitBinop("sdiv", ins, f)
+		}
 	case ir.Oudiv:
 		t.emitBinop("udiv", ins, f)
 	case ir.Orem, ir.Ourem:
@@ -136,8 +146,13 @@ func (t *ARM64Target) emitIns(ins ir.Instruction, f *ir.Function) {
 			// But globals are usually external or data. Use adrp + add for full 4GB relative reach.
 			// However, adrp requires page-aligned symbol.
 			// Let's use adrp/add sequence which is standard PIC.
-			fmt.Printf("\tadrp %s, %s@PAGE\n", dst, symName)
-			fmt.Printf("\tadd %s, %s, %s@PAGEOFF\n", dst, dst, symName)
+			if t.Apple {
+				fmt.Fprintf(t.w(), "\tadrp %s, %s@PAGE\n", dst, symName)
+				fmt.Fprintf(t.w(), "\tadd %s, %s, %s@PAGEOFF\n", dst, dst, symName)
+			} else {
+				fmt.Fprintf(t.w(), "\tadrp %s, %s\n", dst, symName)
+				fmt.Fprintf(t.w(), "\tadd %s, %s, :lo12:%s\n", dst, dst, symName)
+			}
 			return
 		}
 
@@ -152,7 +167,7 @@ func (t *ARM64Target) emitIns(ins ir.Instruction, f *ir.Function) {
 					tmpGPR = "w16"
 				}
 				t.emitMoveImm("x16", val, true)
-				fmt.Printf("\tfmov %s, %s\n", dst, tmpGPR)
+				fmt.Fprintf(t.w(), "\tfmov %s, %s\n", dst, tmpGPR)
 			} else {
 				t.emitMoveImm(dst, val, ins.Cls == ir.Kl)
 			}
@@ -163,22 +178,22 @@ func (t *ARM64Target) emitIns(ins ir.Instruction, f *ir.Function) {
 				if ins.Cls.IsFloat() {
 					cmd = "fmov"
 				}
-				fmt.Printf("\t%s %s, %s\n", cmd, dst, src)
+				fmt.Fprintf(t.w(), "\t%s %s, %s\n", cmd, dst, src)
 			}
 		}
 
 	case ir.Oload:
-		fmt.Printf("\tldr %s, [%s]\n", t.formatRef(ins.To, ins.Cls, f), t.formatRef(ins.Arg[0], ir.Kl, f))
+		fmt.Fprintf(t.w(), "\tldr %s, [%s]\n", t.formatRef(ins.To, ins.Cls, f), t.formatRef(ins.Arg[0], ir.Kl, f))
 	case ir.Ostoreb:
-		fmt.Printf("\tstrb %s, [%s]\n", t.formatRef(ins.Arg[0], ir.Kw, f), t.formatRef(ins.Arg[1], ir.Kl, f))
+		fmt.Fprintf(t.w(), "\tstrb %s, [%s]\n", t.formatRef(ins.Arg[0], ir.Kw, f), t.formatRef(ins.Arg[1], ir.Kl, f))
 	case ir.Ostoreh:
-		fmt.Printf("\tstrh %s, [%s]\n", t.formatRef(ins.Arg[0], ir.Kw, f), t.formatRef(ins.Arg[1], ir.Kl, f))
+		fmt.Fprintf(t.w(), "\tstrh %s, [%s]\n", t.formatRef(ins.Arg[0], ir.Kw, f), t.formatRef(ins.Arg[1], ir.Kl, f))
 	case ir.Ostorew:
-		fmt.Printf("\tstr %s, [%s]\n", t.formatRef(ins.Arg[0], ir.Kw, f), t.formatRef(ins.Arg[1], ir.Kl, f))
+		fmt.Fprintf(t.w(), "\tstr %s, [%s]\n", t.formatRef(ins.Arg[0], ir.Kw, f), t.formatRef(ins.Arg[1], ir.Kl, f))
 	case ir.Ostorel:
-		fmt.Printf("\tstr %s, [%s]\n", t.formatRef(ins.Arg[0], ir.Kl, f), t.formatRef(ins.Arg[1], ir.Kl, f))
+		fmt.Fprintf(t.w(), "\tstr %s, [%s]\n", t.formatRef(ins.Arg[0], ir.Kl, f), t.formatRef(ins.Arg[1], ir.Kl, f))
 	case ir.Ostores, ir.Ostored:
-		fmt.Printf("\tstr %s, [%s]\n", t.formatRef(ins.Arg[0], ins.Cls, f), t.formatRef(ins.Arg[1], ir.Kl, f))
+		fmt.Fprintf(t.w(), "\tstr %s, [%s]\n", t.formatRef(ins.Arg[0], ins.Cls, f), t.formatRef(ins.Arg[1], ir.Kl, f))
 
 	case ir.Oceqw, ir.Oceql, ir.Oceqs, ir.Oceqd:
 		t.emitCmp("eq", ins, f)
@@ -204,31 +219,124 @@ func (t *ARM64Target) emitIns(ins ir.Instruction, f *ir.Function) {
 		if ins.Op == ir.Ostoui || ins.Op == ir.Odtoui {
 			cmd = "fcvtzu"
 		}
-		fmt.Printf("\t%s %s, %s\n", cmd, dst, src)
+		fmt.Fprintf(t.w(), "\t%s %s, %s\n", cmd, dst, src)
 
 	case ir.Oswtof, ir.Osltof, ir.Ouwtof, ir.Oultof:
 		dst := t.formatRef(ins.To, ins.Cls, f)
-		src := t.formatRef(ins.Arg[0], ir.Kw, f)
+		srcCls := ir.Kw
+		if ins.Op == ir.Osltof || ins.Op == ir.Oultof {
+			srcCls = ir.Kl
+		}
+		src := t.formatRef(ins.Arg[0], srcCls, f)
 		cmd := "scvtf"
 		if ins.Op == ir.Ouwtof || ins.Op == ir.Oultof {
 			cmd = "ucvtf"
 		}
-		fmt.Printf("\t%s %s, %s\n", cmd, dst, src)
+		fmt.Fprintf(t.w(), "\t%s %s, %s\n", cmd, dst, src)
 
 	case ir.Oexts, ir.Otruncd:
-		fmt.Printf("\tfcvt %s, %s\n", t.formatRef(ins.To, ins.Cls, f), t.formatRef(ins.Arg[0], ir.Kx, f))
+		fmt.Fprintf(t.w(), "\tfcvt %s, %s\n", t.formatRef(ins.To, ins.Cls, f), t.formatRef(ins.Arg[0], ir.Kx, f))
 	case ir.Ocast:
-		fmt.Printf("\tfmov %s, %s\n", t.formatRef(ins.To, ins.Cls, f), t.formatRef(ins.Arg[0], ir.Kx, f))
+		fmt.Fprintf(t.w(), "\tfmov %s, %s\n", t.formatRef(ins.To, ins.Cls, f), t.formatRef(ins.Arg[0], ir.Kx, f))
 
 	case ir.Ocall:
-		fmt.Printf("\tbl %s\n", t.formatRef(ins.Arg[0], ir.Kl, f))
+		fmt.Fprintf(t.w(), "\tbl %s\n", t.formatRef(ins.Arg[0], ir.Kl, f))
 
 	case ir.Oalloc4, ir.Oalloc8, ir.Oalloc16:
 		offset := (ins.To.Val + 1) * 8
-		fmt.Printf("\tadd %s, x29, #%d\n", t.formatRef(ins.To, ir.Kl, f), offset)
+		fmt.Fprintf(t.w(), "\tadd %s, x29, #%d\n", t.formatRef(ins.To, ir.Kl, f), offset)
+
+	case ir.Oneg:
+		dst := t.formatRef(ins.To, ins.Cls, f)
+		src := t.formatRef(ins.Arg[0], ins.Cls, f)
+		if ins.Cls.IsFloat() {
+			fmt.Fprintf(t.w(), "\tfneg %s, %s\n", dst, src)
+		} else {
+			fmt.Fprintf(t.w(), "\tneg %s, %s\n", dst, src)
+		}
+
+	case ir.Oloadsb:
+		addr := t.formatRef(ins.Arg[0], ir.Kl, f)
+		dst := t.formatRef(ins.To, ins.Cls, f)
+		fmt.Fprintf(t.w(), "\tldrsb %s, [%s]\n", dst, addr)
+
+	case ir.Oloadub:
+		addr := t.formatRef(ins.Arg[0], ir.Kl, f)
+		wdst := t.formatRef(ins.To, ir.Kw, f)
+		fmt.Fprintf(t.w(), "\tldrb %s, [%s]\n", wdst, addr)
+
+	case ir.Oloadsh:
+		addr := t.formatRef(ins.Arg[0], ir.Kl, f)
+		dst := t.formatRef(ins.To, ins.Cls, f)
+		fmt.Fprintf(t.w(), "\tldrsh %s, [%s]\n", dst, addr)
+
+	case ir.Oloaduh:
+		addr := t.formatRef(ins.Arg[0], ir.Kl, f)
+		wdst := t.formatRef(ins.To, ir.Kw, f)
+		fmt.Fprintf(t.w(), "\tldrh %s, [%s]\n", wdst, addr)
+
+	case ir.Oloadsw:
+		addr := t.formatRef(ins.Arg[0], ir.Kl, f)
+		xdst := t.formatRef(ins.To, ir.Kl, f)
+		fmt.Fprintf(t.w(), "\tldrsw %s, [%s]\n", xdst, addr)
+
+	case ir.Oloaduw:
+		addr := t.formatRef(ins.Arg[0], ir.Kl, f)
+		wdst := t.formatRef(ins.To, ir.Kw, f)
+		fmt.Fprintf(t.w(), "\tldr %s, [%s]\n", wdst, addr)
+
+	case ir.Oextsb:
+		dst := t.formatRef(ins.To, ins.Cls, f)
+		src := t.formatRef(ins.Arg[0], ir.Kw, f)
+		fmt.Fprintf(t.w(), "\tsxtb %s, %s\n", dst, src)
+
+	case ir.Oextub:
+		wdst := t.formatRef(ins.To, ir.Kw, f)
+		src := t.formatRef(ins.Arg[0], ir.Kw, f)
+		fmt.Fprintf(t.w(), "\tuxtb %s, %s\n", wdst, src)
+
+	case ir.Oextsh:
+		dst := t.formatRef(ins.To, ins.Cls, f)
+		src := t.formatRef(ins.Arg[0], ir.Kw, f)
+		fmt.Fprintf(t.w(), "\tsxth %s, %s\n", dst, src)
+
+	case ir.Oextuh:
+		wdst := t.formatRef(ins.To, ir.Kw, f)
+		src := t.formatRef(ins.Arg[0], ir.Kw, f)
+		fmt.Fprintf(t.w(), "\tuxth %s, %s\n", wdst, src)
+
+	case ir.Oextsw:
+		xdst := t.formatRef(ins.To, ir.Kl, f)
+		wsrc := t.formatRef(ins.Arg[0], ir.Kw, f)
+		fmt.Fprintf(t.w(), "\tsxtw %s, %s\n", xdst, wsrc)
+
+	case ir.Oextuw:
+		wdst := t.formatRef(ins.To, ir.Kw, f)
+		wsrc := t.formatRef(ins.Arg[0], ir.Kw, f)
+		fmt.Fprintf(t.w(), "\tmov %s, %s\n", wdst, wsrc)
+
+	case ir.Ocugew, ir.Ocugel:
+		t.emitCmp("hs", ins, f)
+	case ir.Ocugtw, ir.Ocugtl:
+		t.emitCmp("hi", ins, f)
+	case ir.Oculew, ir.Oculel:
+		t.emitCmp("ls", ins, f)
+	case ir.Ocultw, ir.Ocultl:
+		t.emitCmp("lo", ins, f)
+
+	case ir.Ocos, ir.Ocod:
+		t.emitCmp("vc", ins, f)
+	case ir.Ocuos, ir.Ocuod:
+		t.emitCmp("vs", ins, f)
+
+	case ir.Omadd:
+		dst := t.formatRef(ins.To, ins.Cls, f)
+		src1 := t.formatRef(ins.Arg[0], ins.Cls, f)
+		src2 := t.formatRef(ins.Arg[1], ins.Cls, f)
+		fmt.Fprintf(t.w(), "\tmadd %s, %s, %s, xzr\n", dst, src1, src2)
 
 	default:
-		fmt.Printf("\t// unhandled op %s\n", ins.Op)
+		fmt.Fprintf(t.w(), "\t// unhandled op %s\n", ins.Op)
 	}
 }
 
@@ -267,12 +375,13 @@ func (t *ARM64Target) formatRef(r ir.Ref, cls ir.Class, f *ir.Function) string {
 }
 
 func (t *ARM64Target) EmitData(d *ir.Data) {
-	fmt.Printf(".data\n")
+	pfx := t.symPrefix()
+	fmt.Fprintf(t.w(), ".data\n")
 	if d.Exported {
-		fmt.Printf(".globl _%s\n", d.Label)
+		fmt.Fprintf(t.w(), ".globl %s%s\n", pfx, d.Label)
 	}
-	fmt.Printf(".p2align 3\n")
-	fmt.Printf("_%s:\n", d.Label)
+	fmt.Fprintf(t.w(), ".p2align 3\n")
+	fmt.Fprintf(t.w(), "%s%s:\n", pfx, d.Label)
 
 	for _, item := range d.Items {
 		switch item.Type {
@@ -281,23 +390,23 @@ func (t *ARM64Target) EmitData(d *ir.Data) {
 				// We need to properly quote the string for assembly
 				// But Go's %q adds quotes. Assembly expects quoted string too.
 				// Example: .asciz "Hello\n"
-				fmt.Printf("\t.asciz %q\n", item.String)
+				fmt.Fprintf(t.w(), "\t.asciz %q\n", item.String)
 			} else {
-				fmt.Printf("\t.byte %d\n", item.Value)
+				fmt.Fprintf(t.w(), "\t.byte %d\n", item.Value)
 			}
 		case "h":
-			fmt.Printf("\t.hword %d\n", item.Value)
+			fmt.Fprintf(t.w(), "\t.hword %d\n", item.Value)
 		case "w":
-			fmt.Printf("\t.word %d\n", item.Value)
+			fmt.Fprintf(t.w(), "\t.word %d\n", item.Value)
 		case "l":
 			if item.Label != "" {
 				// If label refers to a symbol/global
-				fmt.Printf("\t.quad _%s\n", item.Label)
+				fmt.Fprintf(t.w(), "\t.quad %s%s\n", pfx, item.Label)
 			} else {
-				fmt.Printf("\t.quad %d\n", item.Value)
+				fmt.Fprintf(t.w(), "\t.quad %d\n", item.Value)
 			}
 		case "z":
-			fmt.Printf("\t.zero %d\n", item.Value)
+			fmt.Fprintf(t.w(), "\t.zero %d\n", item.Value)
 		}
 	}
 }

@@ -2,6 +2,8 @@ package arm64
 
 import (
 	"fmt"
+	"io"
+	"os"
 )
 
 // ARM64 specific register constants (AArch64)
@@ -93,6 +95,14 @@ var paramFPR = []int{V0, V1, V2, V3, V4, V5, V6, V7}
 type ARM64Target struct {
 	Apple          bool
 	CurrentGlobals []string
+	Out            io.Writer
+}
+
+func (t *ARM64Target) w() io.Writer {
+	if t.Out != nil {
+		return t.Out
+	}
+	return os.Stdout
 }
 
 func (t *ARM64Target) Name() string {

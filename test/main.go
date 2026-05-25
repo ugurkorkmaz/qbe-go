@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	target := &arm64.ARM64Target{Apple: true}
+	target := &arm64.ARM64Target{Apple: false}
 
 	// Function $add(w %a, w %b)
 	b1 := builder.NewBuilder("add")
@@ -75,7 +75,7 @@ func main() {
 	}
 
 	// Compile and emit everything
-	globals := []string{"_add", "_print_int", "_print_str", "_msg", "_print_float"}
+	globals := []string{"add", "print_int", "print_str", "msg", "print_float"}
 
 	// Emit Data first (good practice)
 	target.EmitData(msgData)

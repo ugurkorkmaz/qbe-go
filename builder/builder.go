@@ -47,6 +47,102 @@ func (b *Builder) Add(cls ir.Class, l, r ir.Ref) ir.Ref {
 	return to
 }
 
+func (b *Builder) Sub(cls ir.Class, l, r ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Osub, cls, to, l, r)
+	return to
+}
+
+func (b *Builder) Mul(cls ir.Class, l, r ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Omul, cls, to, l, r)
+	return to
+}
+
+func (b *Builder) Neg(cls ir.Class, src ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Oneg, cls, to, src, ir.Undef)
+	return to
+}
+
+func (b *Builder) Load(cls ir.Class, addr ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Oload, cls, to, addr, ir.Undef)
+	return to
+}
+
+func (b *Builder) LoadSB(cls ir.Class, addr ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Oloadsb, cls, to, addr, ir.Undef)
+	return to
+}
+
+func (b *Builder) LoadUB(cls ir.Class, addr ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Oloadub, cls, to, addr, ir.Undef)
+	return to
+}
+
+func (b *Builder) LoadSH(cls ir.Class, addr ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Oloadsh, cls, to, addr, ir.Undef)
+	return to
+}
+
+func (b *Builder) LoadUH(cls ir.Class, addr ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Oloaduh, cls, to, addr, ir.Undef)
+	return to
+}
+
+func (b *Builder) LoadSW(addr ir.Ref) ir.Ref {
+	to := b.Tmp("", ir.Kl)
+	b.Ins(ir.Oloadsw, ir.Kl, to, addr, ir.Undef)
+	return to
+}
+
+func (b *Builder) LoadUW(addr ir.Ref) ir.Ref {
+	to := b.Tmp("", ir.Kl)
+	b.Ins(ir.Oloaduw, ir.Kl, to, addr, ir.Undef)
+	return to
+}
+
+func (b *Builder) ExtSB(cls ir.Class, src ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Oextsb, cls, to, src, ir.Undef)
+	return to
+}
+
+func (b *Builder) ExtUB(cls ir.Class, src ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Oextub, cls, to, src, ir.Undef)
+	return to
+}
+
+func (b *Builder) ExtSH(cls ir.Class, src ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Oextsh, cls, to, src, ir.Undef)
+	return to
+}
+
+func (b *Builder) ExtUH(cls ir.Class, src ir.Ref) ir.Ref {
+	to := b.Tmp("", cls)
+	b.Ins(ir.Oextuh, cls, to, src, ir.Undef)
+	return to
+}
+
+func (b *Builder) ExtSW(src ir.Ref) ir.Ref {
+	to := b.Tmp("", ir.Kl)
+	b.Ins(ir.Oextsw, ir.Kl, to, src, ir.Undef)
+	return to
+}
+
+func (b *Builder) ExtUW(src ir.Ref) ir.Ref {
+	to := b.Tmp("", ir.Kl)
+	b.Ins(ir.Oextuw, ir.Kl, to, src, ir.Undef)
+	return to
+}
+
 func (b *Builder) Copy(cls ir.Class, src ir.Ref) ir.Ref {
 	to := b.Tmp("", cls)
 	b.Ins(ir.Ocopy, cls, to, src, ir.Undef)
