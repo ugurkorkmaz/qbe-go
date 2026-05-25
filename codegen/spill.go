@@ -71,6 +71,13 @@ func Spill(f *ir.Function, target arch.Target) {
 			// After each instruction, we must ensure pressure is within limits
 			limit(f, live, masks[0], target.NGPR())
 			limit(f, live, masks[1], target.NFPR())
+
+			// Handle Oalloc instructions by assigning them a permanent slot
+			if ins.Op == ir.Oalloc4 || ins.Op == ir.Oalloc8 || ins.Op == ir.Oalloc16 {
+				if f.Temps[ins.To.Val].Slot == -1 {
+					f.Temps[ins.To.Val].Slot = int(f.NTmp) // Placeholder index for frame calculation
+				}
+			}
 		}
 
 		// b.In is updated

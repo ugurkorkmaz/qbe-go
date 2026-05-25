@@ -264,15 +264,13 @@ func (t *ARM64Target) selpar(f *ir.Function, b *ir.Block) {
 			var cr arm64Class
 			ty := &f.Types[ins.Arg[0].Val]
 			t.typclass(&cr, ty, &gp, &fp, f)
-			// Handle complex aggregate parameter loading...
 			newIns = append(newIns, ir.Instruction{
 				Op: ir.Ocopy, Cls: ir.Kl, To: ins.To,
 				Arg: [2]ir.Ref{ir.PhysicalReg(cr.reg[0]), ir.Undef},
 			})
 		} else {
-			// Parameters finished
-			newIns = append(newIns, b.Ins[i:]...)
-			break
+			// Keep other instructions as they are
+			newIns = append(newIns, ins)
 		}
 	}
 	b.Ins = newIns
