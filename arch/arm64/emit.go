@@ -145,6 +145,8 @@ func (t *ARM64Target) emitIns(ins ir.Instruction, f *ir.Function) {
 
 func (t *ARM64Target) emitInsDirect(ins ir.Instruction, f *ir.Function) {
 	switch ins.Op {
+	case ir.Onop:
+		return
 	case ir.Oadd: t.emitBinop("add", ins, f)
 	case ir.Osub: t.emitBinop("sub", ins, f)
 	case ir.Omul: t.emitBinop("mul", ins, f)
@@ -175,6 +177,14 @@ func (t *ARM64Target) emitInsDirect(ins ir.Instruction, f *ir.Function) {
 	case ir.Oloadub: t.emitMem("ldrb", t.formatRef(ins.To, ir.Kw, f), ins.Arg[0], f)
 	case ir.Ostoreb: t.emitMem("strb", t.formatRef(ins.Arg[0], ir.Kw, f), ins.Arg[1], f)
 	case ir.Ostorel: t.emitMem("str", t.formatRef(ins.Arg[0], ir.Kl, f), ins.Arg[1], f)
+	case ir.Omadd, ir.Omsub:
+		dst := t.formatRef(ins.To, ins.Cls, f)
+		src1 := t.formatRef(ins.Arg[0], ins.Cls, f)
+		src2 := t.formatRef(ins.Arg[1], ins.Cls, f)
+		src3 := t.formatRef(ins.Arg[2], ins.Cls, f)
+		cmd := "madd"
+		if ins.Op == ir.Omsub { cmd = "msub" }
+		fmt.Fprintf(t.w(), "\t%s %s, %s, %s, %s\n", cmd, dst, src1, src2, src3)
 	case ir.Ocall:
 		t.flushPendingCmp(f)
 		fmt.Fprintf(t.w(), "\tbl %s\n", t.formatRef(ins.Arg[0], ir.Kl, f))

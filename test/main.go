@@ -42,6 +42,8 @@ func main() {
 		"fact",        // 11
 		"clamp",       // 12
 		"abs_diff",    // 13
+		"madd_test",   // 14
+		"msub_test",   // 15
 	}
 
 	// --- add(w %a, w %b) ---
@@ -124,7 +126,7 @@ func main() {
 	bClamp.SetBlock(clRetX)
 	bClamp.Ret(ir.Kw, cx)
 
-	// --- Test 9: abs_diff(w %a, w %b) → |a - b| ---
+	// --- abs_diff(w %a, w %b) ---
 	bAbs := builder.NewBuilder("abs_diff")
 	absStart := bAbs.Block("start")
 	absThen := bAbs.Block("then")
@@ -137,6 +139,22 @@ func main() {
 	bAbs.Ret(ir.Kw, bAbs.Sub(ir.Kw, aa, ab))
 	bAbs.SetBlock(absElse)
 	bAbs.Ret(ir.Kw, bAbs.Sub(ir.Kw, ab, aa))
+
+	// --- madd_test(w %a, w %b, w %c) ---
+	bMadd := builder.NewBuilder("madd_test")
+	bMadd.Block("start")
+	ma := bMadd.Param(ir.Kw, "a")
+	mb := bMadd.Param(ir.Kw, "b")
+	mc := bMadd.Param(ir.Kw, "c")
+	bMadd.Ret(ir.Kw, bMadd.Add(ir.Kw, bMadd.Mul(ir.Kw, ma, mb), mc))
+
+	// --- msub_test(w %a, w %b, w %c) ---
+	bMsub := builder.NewBuilder("msub_test")
+	bMsub.Block("start")
+	msa := bMsub.Param(ir.Kw, "a")
+	msb := bMsub.Param(ir.Kw, "b")
+	msc := bMsub.Param(ir.Kw, "c")
+	bMsub.Ret(ir.Kw, bMsub.Sub(ir.Kw, msc, bMsub.Mul(ir.Kw, msa, msb)))
 
 	// --- main() ---
 	b2 := builder.NewBuilder("main")
@@ -222,6 +240,7 @@ func main() {
 		b1.Build(), bSub.Build(), bMul.Build(), bNeg.Build(),
 		bMax.Build(), bPos.Build(),
 		bFadd.Build(), bFact.Build(), bClamp.Build(), bAbs.Build(),
+		bMadd.Build(), bMsub.Build(),
 		f2,
 	}
 	for _, f := range funcs {

@@ -16,18 +16,25 @@ func SSA(f *ir.Function) {
 
 	insertPhis(f)
 	rename(f)
+	FillUse(f)
 }
 
 func FillUse(f *ir.Function) {
 	for i := range f.Temps {
 		f.Temps[i].Uses = nil
 		f.Temps[i].Def = nil
+		f.Temps[i].NUse = 0
+		f.Temps[i].NDef = 0
 	}
 
 	for _, b := range f.Blocks {
 		for _, p := range b.Phis {
+			if p.To.IsTmp() {
+				f.Temps[p.To.Val].NDef++
+			}
 			for _, arg := range p.Args {
 				if arg.IsTmp() {
+					f.Temps[arg.Val].NUse++
 					f.Temps[arg.Val].Uses = append(f.Temps[arg.Val].Uses, ir.Use{
 						Kind: ir.UPhi,
 						Bid:  b.Id,
@@ -40,9 +47,11 @@ func FillUse(f *ir.Function) {
 			ins := &b.Ins[i]
 			if ins.To.IsTmp() {
 				f.Temps[ins.To.Val].Def = ins
+				f.Temps[ins.To.Val].NDef++
 			}
 			for _, arg := range ins.Arg {
 				if arg.IsTmp() {
+					f.Temps[arg.Val].NUse++
 					f.Temps[arg.Val].Uses = append(f.Temps[arg.Val].Uses, ir.Use{
 						Kind: ir.UIns,
 						Bid:  b.Id,
@@ -52,6 +61,7 @@ func FillUse(f *ir.Function) {
 			}
 		}
 		if b.Jmp.Arg.IsTmp() {
+			f.Temps[b.Jmp.Arg.Val].NUse++
 			f.Temps[b.Jmp.Arg.Val].Uses = append(f.Temps[b.Jmp.Arg.Val].Uses, ir.Use{
 				Kind: ir.UJmp,
 				Bid:  b.Id,
