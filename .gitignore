@@ -5,6 +5,7 @@
 *.exe
 test_orig
 test_go
+test/prog
 
 # Intermediate
 test.ssa
@@ -14,6 +15,9 @@ test.ssa
 # Editor
 .vscode/
 .idea/
+
+# AI Context
+GEMINI.md
 
 # Go
 vendor/

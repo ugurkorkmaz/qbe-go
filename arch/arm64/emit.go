@@ -97,6 +97,26 @@ func (t *ARM64Target) emitJump(b *ir.Block, f *ir.Function) {
 	}
 
 	switch b.Jmp.Type {
+	case ir.Jretw, ir.Jretl, ir.Jrets, ir.Jretd:
+		// Move return value to x0/w0 or s0/d0
+		cls := b.Jmp.Type.Class()
+		dst := ir.PhysicalReg(0) // x0/w0
+		if cls.IsFloat() {
+			dst = ir.PhysicalReg(32) // v0
+		}
+		if b.Jmp.Arg.Kind != ir.RCon || f.Constants[b.Jmp.Arg.Val].Val != 0 || dst.Val != 0 {
+			fmt.Fprintf(t.w(), "\tmov %s, %s\n", t.formatRef(dst, cls, f), t.formatRef(b.Jmp.Arg, cls, f))
+		}
+
+		calleeSaveArea := t.calleeSaveAreaSize(f)
+		prologueSize := 16 + calleeSaveArea
+		fmt.Fprintf(t.w(), "\tmov sp, x29\n")
+		for i, reg := range f.CalleeSaved {
+			fmt.Fprintf(t.w(), "\tldr %s, [sp, #%d]\n", gprNames[reg], 16+i*8)
+		}
+		fmt.Fprintf(t.w(), "\tldp x29, x30, [sp], #%d\n", prologueSize)
+		fmt.Fprintf(t.w(), "\tret\n")
+
 	case ir.Jjmp:
 		if b.S1 != nil {
 			fmt.Fprintf(t.w(), "\tb %s%s_%d\n", lblPrefix, f.Name, b.S1.Id)
