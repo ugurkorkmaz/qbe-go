@@ -217,13 +217,14 @@ func (t *ARM64Target) ABI0(f *ir.Function) {
 				continue
 			}
 			if ins.Op == ir.Ocall {
-				// Find args before this Ocall
+				// Find args before this Ocall. 
+				// We look back but stop if we hit another Ocall or a block start.
 				args := []ir.Instruction{}
 				for j := i - 1; j >= 0; j-- {
 					if newIns[j].Op == ir.Oarg || newIns[j].Op == ir.Oargc {
 						args = append([]ir.Instruction{newIns[j]}, args...)
-					} else {
-						break
+					} else if newIns[j].Op == ir.Ocall {
+						break // Belongs to a different call
 					}
 				}
 				t.selcall(f, &lowerIns, args, &ins)

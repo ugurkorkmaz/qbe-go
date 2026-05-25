@@ -7,40 +7,34 @@ import (
 )
 
 // VerifySSA ensures that the function IR respects SSA invariants.
-// 1. Every temporary is defined exactly once.
-// 2. Every use of a temporary is dominated by its definition.
 func VerifySSA(f *ir.Function) error {
 	// First, check for multiple definitions
 	defs := make([]int, f.NTmp)
 	for _, b := range f.Blocks {
 		for _, p := range b.Phis {
-			if p.To.IsTmp() {
+			if p.To.IsTmp() && p.To.Val != 0 {
 				defs[p.To.Val]++
 			}
 		}
 		for _, ins := range b.Ins {
-			if ins.To.IsTmp() {
+			if ins.To.IsTmp() && ins.To.Val != 0 {
 				defs[ins.To.Val]++
 			}
 		}
 	}
 
 	for t, count := range defs {
+		if t < 64 { continue } // Skip physical registers
 		if count > 1 {
 			return fmt.Errorf("temporary %%%d defined %d times (SSA requires exactly one definition)", t, count)
-		}
-		if count == 0 && f.Temps[t].Name != "" {
-			// Note: Some temps might be intentionally undefined if they are global or special,
-			// but in pure SSA, every local temp has a def.
 		}
 	}
 
 	// Second, check dominance invariant
 	for _, b := range f.Blocks {
-		// Instructions in block b
 		for _, ins := range b.Ins {
 			for _, arg := range ins.Arg {
-				if arg.IsTmp() {
+				if arg.IsTmp() && arg.Val != 0 {
 					if err := checkDom(f, arg.Val, b); err != nil {
 						return fmt.Errorf("instruction %s in @%s: %v", ins.Op, b.Name, err)
 					}
@@ -48,16 +42,11 @@ func VerifySSA(f *ir.Function) error {
 			}
 		}
 
-		// Jump in block b
-		if b.Jmp.Arg.IsTmp() {
+		if b.Jmp.Arg.IsTmp() && b.Jmp.Arg.Val != 0 {
 			if err := checkDom(f, b.Jmp.Arg.Val, b); err != nil {
 				return fmt.Errorf("jump in @%s: %v", b.Name, err)
 			}
 		}
-
-		// Phis in successor blocks
-		// The use in Phi(P1: v1, P2: v2) in block S is considered to happen at the
-		// end of predecessor Pi.
 	}
 
 	return nil

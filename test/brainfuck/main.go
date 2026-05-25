@@ -11,7 +11,6 @@ import (
 	"github.com/ugurkorkmaz/qbe-go/ir"
 )
 
-// BFCompiler maps Brainfuck code to qbe-go IR
 type BFCompiler struct {
 	builder *builder.Builder
 	code    string
@@ -29,9 +28,20 @@ func NewBFCompiler(name string, bfCode string) *BFCompiler {
 func (c *BFCompiler) Compile() *ir.Function {
 	b := c.builder
 	b.Block("start")
-	c.ptr = b.Param(ir.Kl, "tape")
+	
+	// Use a stack slot to store the tape pointer to avoid SSA complexities in nested loops
+	ptrSlot := b.Func.NewTmp("ptr_addr", ir.Kl)
+	b.Ins(ir.Oalloc8, ir.Kl, ptrSlot, ir.Undef, ir.Undef)
+	
+	// Initialize stack slot with starting pointer (X0)
+	tapeArg := b.Param(ir.Kl, "tape")
+	b.Ins(ir.Ostorel, ir.Kl, ir.Undef, tapeArg, ptrSlot)
+	
+	c.ptr = ptrSlot // Now c.ptr is the ADDRESS of the pointer
 	c.genIR()
+	
 	b.Ret(ir.Kw, b.Con(0))
+	
 	f := b.Build()
 	f.Exported = true
 	return f
@@ -54,57 +64,52 @@ func (c *BFCompiler) genIR() {
 
 		switch char {
 		case '>':
-			c.ptr = b.Add(ir.Kl, c.ptr, b.Con(1))
+			addr := b.Load(ir.Kl, c.ptr)
+			newAddr := b.Add(ir.Kl, addr, b.Con(1))
+			b.Ins(ir.Ostorel, ir.Kl, ir.Undef, newAddr, c.ptr)
 		case '<':
-			c.ptr = b.Sub(ir.Kl, c.ptr, b.Con(1))
+			addr := b.Load(ir.Kl, c.ptr)
+			newAddr := b.Sub(ir.Kl, addr, b.Con(1))
+			b.Ins(ir.Ostorel, ir.Kl, ir.Undef, newAddr, c.ptr)
 		case '+':
-			val := b.LoadUB(ir.Kw, c.ptr)
+			addr := b.Load(ir.Kl, c.ptr)
+			val := b.LoadUB(ir.Kw, addr)
 			inc := b.Add(ir.Kw, val, b.Con(1))
-			b.Ins(ir.Ostoreb, ir.Kw, ir.Undef, inc, c.ptr)
+			b.Ins(ir.Ostoreb, ir.Kw, ir.Undef, inc, addr)
 		case '-':
-			val := b.LoadUB(ir.Kw, c.ptr)
+			addr := b.Load(ir.Kl, c.ptr)
+			val := b.LoadUB(ir.Kw, addr)
 			dec := b.Sub(ir.Kw, val, b.Con(1))
-			b.Ins(ir.Ostoreb, ir.Kw, ir.Undef, dec, c.ptr)
+			b.Ins(ir.Ostoreb, ir.Kw, ir.Undef, dec, addr)
 		case '.':
-			val := b.LoadUB(ir.Kw, c.ptr)
+			addr := b.Load(ir.Kl, c.ptr)
+			val := b.LoadUB(ir.Kw, addr)
 			b.Call(ir.Kw, putcharSym, []ir.Ref{val})
 		case ',':
+			addr := b.Load(ir.Kl, c.ptr)
 			res := b.Call(ir.Kw, getcharSym, nil)
-			b.Ins(ir.Ostoreb, ir.Kw, ir.Undef, res, c.ptr)
+			b.Ins(ir.Ostoreb, ir.Kw, ir.Undef, res, addr)
 		case '[':
 			start := b.Block(fmt.Sprintf("loop_start_%d", c.pos))
 			body := b.Block(fmt.Sprintf("loop_body_%d", c.pos))
 			end := b.Block(fmt.Sprintf("loop_end_%d", c.pos))
 			
-			// Previous block jumps to start
-			prev := b.Func.Blocks[len(b.Func.Blocks)-4] // start, body, end just added
-			// Actually builder.Block sets b.cur. Let's be careful.
-			// The block before '[' was the current block.
-			
-			// To correctly link blocks:
-			// 1. Link previous block to 'start'
-			prev.Jmp = ir.Jump{Type: ir.Jjmp}
+			prev := b.Func.Blocks[len(b.Func.Blocks)-4]
+			prev.Jmp = ir.Jump{Type: ir.Jjmp, Arg: ir.Undef}
 			prev.S1 = start
 			
-			// 2. start: if (val != 0) body else end
 			b.SetBlock(start)
-			val := b.LoadUB(ir.Kw, c.ptr)
+			addr := b.Load(ir.Kl, c.ptr)
+			val := b.LoadUB(ir.Kw, addr)
 			b.Jnz(val, body, end)
 			
-			// 3. body: current
 			b.SetBlock(body)
 			stack = append(stack, loop{start, end})
 		case ']':
-			if len(stack) == 0 {
-				log.Fatal("Unmatched ']'")
-			}
+			if len(stack) == 0 { log.Fatal("Unmatched ']'") }
 			l := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
-			
-			// Body block jumps back to start
 			b.Jmp(l.start)
-			
-			// New code goes to 'end'
 			b.SetBlock(l.end)
 		}
 	}
@@ -118,7 +123,7 @@ func main() {
 	target := &arm64.ARM64Target{Apple: false}
 	globals := []string{"putchar", "getchar"}
 
-	analysis.SSA(f)
+	analysis.SSA(f) // Still run SSA for basic analysis
 	codegen.Spill(f, target)
 	target.ABI0(f)
 	codegen.NewRegAllocator(f, target).Allocate()

@@ -164,7 +164,7 @@ func (b *Builder) Ins(op ir.Opcode, cls ir.Class, to, arg1, arg2 ir.Ref) {
 }
 
 func (b *Builder) Jmp(target *ir.Block) {
-	b.cur.Jmp = ir.Jump{Type: ir.Jjmp}
+	b.cur.Jmp = ir.Jump{Type: ir.Jjmp, Arg: ir.Undef}
 	b.cur.S1 = target
 }
 
